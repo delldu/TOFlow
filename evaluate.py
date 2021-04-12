@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import datetime
 from Network import TOFlow
 import warnings
+import pdb
+
 warnings.filterwarnings("ignore", module="matplotlib.pyplot")
 # ------------------------------
 # I don't know whether you have a GPU.
@@ -73,7 +75,7 @@ def vimeo_evaluate(input_dir, out_img_dir, test_codelistfile, task='', cuda_flag
     mkdir_if_not_exist(out_img_dir)
 
     net = TOFlow(256, 448, cuda_flag=cuda_flag, task=task)
-    net.load_state_dict(torch.load(model_path))
+    net.load_state_dict(torch.load(model_path, map_location='cpu'))
 
     if cuda_flag:
         net.cuda().eval()
@@ -114,6 +116,8 @@ def vimeo_evaluate(input_dir, out_img_dir, test_codelistfile, task='', cuda_flag
             input_frames = torch.from_numpy(input_frames)
         input_frames = input_frames.view(1, input_frames.size(0), input_frames.size(1), input_frames.size(2), input_frames.size(3))
         predicted_img = net(input_frames)[0, :, :, :]
+        # pdb.set_trace()
+        predicted_img = predicted_img.clamp(0, 1.0)
         plt.imsave(os.path.join(out_img_dir, video, sep, 'out.png'),predicted_img.permute(1, 2, 0).cpu().detach().numpy())
 
         cur = datetime.datetime.now()
