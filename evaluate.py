@@ -76,6 +76,8 @@ def vimeo_evaluate(input_dir, out_img_dir, test_codelistfile, task='', cuda_flag
 
     net = TOFlow(256, 448, cuda_flag=cuda_flag, task=task)
     net.load_state_dict(torch.load(model_path, map_location='cpu'))
+    # pdb.set_trace()
+    # model_path -- 'toflow_models/sr.pkl'
 
     if cuda_flag:
         net.cuda().eval()
@@ -96,6 +98,8 @@ def vimeo_evaluate(input_dir, out_img_dir, test_codelistfile, task='', cuda_flag
         raise ValueError('Invalid [--task].\nOnly support: [interp, denoise/denoising, sr/super-resolution]')
     total_count = len(test_img_list)
     count = 0
+    # pdb.set_trace()
+    # test_img_list -- ['00035/0737', '00053/0807', '00052/0159', '00034/0948', '00053/0337', '00071/0347', '00091/0333', '00067/0741']
 
     pre = datetime.datetime.now()
     for code in test_img_list:
@@ -108,6 +112,9 @@ def vimeo_evaluate(input_dir, out_img_dir, test_codelistfile, task='', cuda_flag
         input_frames = []
         for i in process_index:
             input_frames.append(plt.imread(os.path.join(input_dir, code, str_format % i)))
+        # (Pdb) len(input_frames), input_frames[0].shape
+        # (7, (256, 448, 3))
+
         input_frames = np.transpose(np.array(input_frames), (0, 3, 1, 2))
 
         if cuda_flag:
@@ -115,8 +122,12 @@ def vimeo_evaluate(input_dir, out_img_dir, test_codelistfile, task='', cuda_flag
         else:
             input_frames = torch.from_numpy(input_frames)
         input_frames = input_frames.view(1, input_frames.size(0), input_frames.size(1), input_frames.size(2), input_frames.size(3))
+
         predicted_img = net(input_frames)[0, :, :, :]
-        # pdb.set_trace()
+        # input_frames -- torch.Size([1, 7, 3, 256, 448])
+        # predicted_img.size() -- torch.Size([3, 256, 448])
+
+
         predicted_img = predicted_img.clamp(0, 1.0)
         plt.imsave(os.path.join(out_img_dir, video, sep, 'out.png'),predicted_img.permute(1, 2, 0).cpu().detach().numpy())
 

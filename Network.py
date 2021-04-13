@@ -4,6 +4,7 @@ import torch
 
 arguments_strModel = 'sintel-final'
 SpyNet_model_dir = './models'  # The directory of SpyNet's weights
+import pdb
 
 def normalize(tensorInput):
     tensorRed = (tensorInput[:, 0:1, :, :] - 0.485) / 0.229
@@ -36,6 +37,7 @@ def Backward(tensorInput, tensorFlow, cuda_flag):
     return torch.nn.functional.grid_sample(input=tensorInput, grid=(Backward_tensorGrid[str(tensorFlow.size())] + tensorFlow).permute(0, 2, 3, 1), mode='bilinear', padding_mode='border')
 # end
 
+# Optical Flow Estimation Using a Spatial Pyramid Network
 class SpyNet(torch.nn.Module):
     def __init__(self, cuda_flag):
         super(SpyNet, self).__init__()
@@ -65,7 +67,8 @@ class SpyNet(torch.nn.Module):
         self.moduleBasic = torch.nn.ModuleList([Basic(intLevel) for intLevel in range(4)])
 
         self.load_state_dict(torch.load(SpyNet_model_dir + '/network-' + arguments_strModel + '.pytorch'), strict=False)
-
+        # pdb.set_trace()
+        # './models/network-sintel-final.pytorch'
 
     def forward(self, tensorFirst, tensorSecond):
         tensorFirst = [tensorFirst]
@@ -117,6 +120,27 @@ class warp(torch.nn.Module):
         n = torch.FloatTensor(list(range(self.height)))
         vertical_term = n.expand((1, 1, self.width, self.height)).permute(0, 1, 3, 2)
         addterm = torch.cat((horizontal_term, vertical_term), dim=1)
+        # pdb.set_trace()
+        # addterm -- torch.Size([1, 2, 256, 448])
+        # horizontal_term -- torch.Size([1, 1, 256, 448])
+        # tensor([[[[  0.,   1.,   2.,  ..., 445., 446., 447.],
+        #           [  0.,   1.,   2.,  ..., 445., 446., 447.],
+        #           [  0.,   1.,   2.,  ..., 445., 446., 447.],
+        #           ...,
+        #           [  0.,   1.,   2.,  ..., 445., 446., 447.],
+        #           [  0.,   1.,   2.,  ..., 445., 446., 447.],
+        #           [  0.,   1.,   2.,  ..., 445., 446., 447.]]]])
+
+        # vertical_term.size() -- torch.Size([1, 1, 256, 448])
+        # (Pdb) vertical_term
+        # tensor([[[[  0.,   0.,   0.,  ...,   0.,   0.,   0.],
+        #           [  1.,   1.,   1.,  ...,   1.,   1.,   1.],
+        #           [  2.,   2.,   2.,  ...,   2.,   2.,   2.],
+        #           ...,
+        #           [253., 253., 253.,  ..., 253., 253., 253.],
+        #           [254., 254., 254.,  ..., 254., 254., 254.],
+        #           [255., 255., 255.,  ..., 255., 255., 255.]]]])
+
         return addterm
 
     def forward(self, frame, flow):
@@ -125,6 +149,11 @@ class warp(torch.nn.Module):
         :param flow: flow.shape (batch_size=1, n_channels=2, width=256, height=448)
         :return: reference_frame: warped frame
         """
+        # frame-- torch.Size([1, 3, 256, 448])
+        # (Pdb) frame.min(), frame.max(), frame.mean()
+        # (tensor(-2.1179, device='cuda:0'), tensor(2.6400, device='cuda:0'), tensor(1.4066, device='cuda:0'))
+        # What's up?
+
         if True:
             flow = flow + self.addterm
         else:
@@ -135,10 +164,16 @@ class warp(torch.nn.Module):
         vertical_flow = flow[0, 1, :, :].expand(1, 1, self.height, self.width)
 
         horizontal_flow = horizontal_flow * 2 / (self.width - 1) - 1
+        # ==> [-1.0, 1.0]
         vertical_flow = vertical_flow * 2 / (self.height - 1) - 1
+        # ==> [-1.0, 1.0]
         flow = torch.cat((horizontal_flow, vertical_flow), dim=1)
         flow = flow.permute(0, 2, 3, 1)
+        # flow--torch.Size([1, 256, 448, 2])
+
         reference_frame = torch.nn.functional.grid_sample(frame, flow)
+        # reference_frame -- torch.Size([1, 3, 256, 448])
+
         return reference_frame
 
 
@@ -235,4 +270,7 @@ class TOFlow(torch.nn.Module):
 
         Img = denormalize(Img)
 
-        return Img
+        # pdb.set_trace()
+        # Img -- torch.Size([1, 3, 256, 448])
+
+        return Img.clamp(0.0, 1.0)
