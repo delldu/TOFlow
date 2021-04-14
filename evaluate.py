@@ -111,6 +111,10 @@ def vimeo_evaluate(input_dir, out_img_dir, test_codelistfile, task='', cuda_flag
         mkdir_if_not_exist(os.path.join(out_img_dir, video, sep))
         input_frames = []
         for i in process_index:
+            image = plt.imread(os.path.join(input_dir, code, str_format % i))
+            output_filename = os.path.join(out_img_dir, video, sep, task + "_" + str_format % i)
+            plt.imsave(output_filename, image)
+
             input_frames.append(plt.imread(os.path.join(input_dir, code, str_format % i)))
         # (Pdb) len(input_frames), input_frames[0].shape
         # (7, (256, 448, 3))
@@ -129,10 +133,10 @@ def vimeo_evaluate(input_dir, out_img_dir, test_codelistfile, task='', cuda_flag
 
 
         predicted_img = predicted_img.clamp(0, 1.0)
-        plt.imsave(os.path.join(out_img_dir, video, sep, 'out.png'),predicted_img.permute(1, 2, 0).cpu().detach().numpy())
+        plt.imsave(os.path.join(out_img_dir, video, sep, task + '_out.png'),predicted_img.permute(1, 2, 0).cpu().detach().numpy())
 
         cur = datetime.datetime.now()
         processing_time = (cur - pre).seconds / count
         print('%.2fs per frame.\t%.2fs left.' % (processing_time, processing_time * (total_count - count)))
 
-vimeo_evaluate(dataset_dir, './evaluate', pathlistfile, task=task, cuda_flag=cuda_flag)
+vimeo_evaluate(dataset_dir, './output', pathlistfile, task=task, cuda_flag=cuda_flag)

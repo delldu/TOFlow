@@ -71,6 +71,12 @@ class SpyNet(torch.nn.Module):
         # './models/network-sintel-final.pytorch'
 
     def forward(self, tensorFirst, tensorSecond):
+        # pdb.set_trace()
+        # (Pdb) tensorFirst.size()
+        # torch.Size([1, 3, 256, 448])
+        # (Pdb) tensorSecond.size()
+        # torch.Size([1, 3, 256, 448])
+
         tensorFirst = [tensorFirst]
         tensorSecond = [tensorSecond]
 
@@ -101,6 +107,9 @@ class SpyNet(torch.nn.Module):
                                                                         tensorFlow=tensorUpsampled,
                                                                         cuda_flag=self.cuda_flag),
                                                                tensorUpsampled], 1)) + tensorUpsampled
+
+        # pdb.set_trace()
+        # tensorFlow.size() -- torch.Size([1, 2, 256, 448])
         return tensorFlow
 
 
@@ -208,11 +217,19 @@ class ResNet(torch.nn.Module):
         return x
 
     def forward(self, frames):
+        # frames.size() -- torch.Size([1, 7, 3, 256, 448])
+
         aver = frames.mean(dim=1)
         x = frames[:, 0, :, :, :]
+        # pdb.set_trace()
+
         for i in range(1, frames.size(1)):
             x = torch.cat((x, frames[:, i, :, :, :]), dim=1)
+
+        # x.size() -- torch.Size([1, 21, 256, 448])
         result = self.ResBlock(x, aver)
+
+        # (Pdb) result.size() -- torch.Size([1, 3, 256, 448])
         return result
 
 
@@ -238,6 +255,10 @@ class TOFlow(torch.nn.Module):
         :param frames: [batch_size=1, img_num, n_channels=3, h, w]
         :return:
         """
+        # pdb.set_trace()
+        # frames.size()
+        # torch.Size([1, 7, 3, 256, 448])
+
         for i in range(frames.size(1)):
             frames[:, i, :, :, :] = normalize(frames[:, i, :, :, :])
 
@@ -264,6 +285,8 @@ class TOFlow(torch.nn.Module):
         for i in process_index:
             warpframes[:, i, :, :, :] = self.warp(frames[:, i, :, :, :], opticalflows[:, i, :, :, :])
         # warpframes: [batch_size=1, img_num=7, n_channels=3, height=256, width=448]
+
+        # (Pdb) warpframes.size() -- torch.Size([1, 7, 3, 256, 448])
 
         Img = self.ResNet(warpframes)
         # Img: [batch_size=1, n_channels=3, h, w]
