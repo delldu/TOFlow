@@ -12,7 +12,7 @@ What's more, you can describe it as the python version of the TOFlow presented t
 
 ## Evaluation Result
 
-#### Vimeo interp.
+#### Vimeo slow.
 | Methods | PSNR | SSIM |
 | :-- | -- | -- |
 | TOFlow | 33.53 | 0.9668 |
@@ -83,7 +83,7 @@ python3 train.py [[option] [value]]...
 ```
 #### **Options**
 
-+ **--task**: training task, like interp, denoising, super-resolution. valid values:[interp, denoise, denoising, sr, super-resolution]
++ **--task**: training task, like slow, clean, zoom. valid values:[slow, denoise, clean, sr, zoom]
 + **--dataDir**: the directory of the image dataset(Vimeo-90K)
 + **--ex_dataDir**: the directory of the preprocessed image dataset, for example, the Vimeo-90K mixed by Gaussian noise.
 + **--pathlist**: the text file records which are the images for train.
@@ -93,9 +93,9 @@ python3 train.py [[option] [value]]...
 
 #### **Examples**
 ```
-python3 train.py --task interp --dataDir ./tiny/vimeo_triplet/sequences --pathlist ./tiny/vimeo_triplet/tri_trainlist.txt --gpuID 1
-python3 train.py --task denoising --dataDir ./tiny/vimeo_septuplet/sequences --ex_dataDir ./tiny/vimeo_septuplet/sequences_with_noise --pathlist ./tiny/vimeo_septuplet/sep_trainlist.txt --gpuID 1
-python3 train.py --task super-resolution --dataDir ./tiny/vimeo_septuplet/sequences --ex_dataDir ./tiny/vimeo_septuplet/sequences_blur --pathlist ./tiny/vimeo_septuplet/sep_trainlist.txt --gpuID 1
+python3 train.py --task slow --dataDir ./tiny/vimeo_triplet/sequences --pathlist ./tiny/vimeo_triplet/tri_trainlist.txt --gpuID 1
+python3 train.py --task clean --dataDir ./tiny/vimeo_septuplet/sequences --ex_dataDir ./tiny/vimeo_septuplet/sequences_with_noise --pathlist ./tiny/vimeo_septuplet/sep_trainlist.txt --gpuID 1
+python3 train.py --task zoom --dataDir ./tiny/vimeo_septuplet/sequences --ex_dataDir ./tiny/vimeo_septuplet/sequences_blur --pathlist ./tiny/vimeo_septuplet/sep_trainlist.txt --gpuID 1
 ```
 
 ## Evaluate
@@ -105,7 +105,7 @@ python3 evaluate.py [[option] [value]]...
 ```
 #### **Options**
 
-+ **--task**: training task, like interp, denoising, super-resolution. valid values:[interp, denoise, denoising, sr, super-resolution]
++ **--task**: training task, like slow, clean, zoom. valid values:[slow, denoise, clean, sr, zoom]
 + **--dataDir**: the directory of the input image dataset(Vimeo-90K, Vimeo-90K with noise, blurred Vimeo-90K)
 + **--pathlist**: the text file records which are the images for train.
 + **--model**: the path of the model used.
@@ -115,9 +115,9 @@ python3 evaluate.py [[option] [value]]...
 #### **Examples**
 
 ```
-python3 evaluate.py --task interp --dataDir ./tiny/vimeo_triplet/sequences --pathlist ./tiny/vimeo_triplet/tri_testlist.txt --model ./toflow_models/interp.pkl --gpuID 1
-python3 evaluate.py --task denoising --dataDir ./tiny/vimeo_septuplet/sequences_with_noise --ex_dataDir ./tiny/vimeo_septuplet/sequences_with_noise --pathlist ./tiny/vimeo_septuplet/sep_testlist.txt --model ./toflow_models/denoise.pkl --gpuID 1
-python3 evaluate.py --task super-resolution --dataDir ./tiny/vimeo_septuplet/sequences_blur --ex_dataDir ./tiny/vimeo_septuplet/sequences_blur --pathlist ./tiny/vimeo_septuplet/sep_testlist.txt --model ./toflow_models/sr.pkl --gpuID 1
+python3 evaluate.py --task slow --dataDir ./tiny/vimeo_triplet/sequences --pathlist ./tiny/vimeo_triplet/tri_testlist.txt --model ./toflow_models/slow.pkl --gpuID 1
+python3 evaluate.py --task clean --dataDir ./tiny/vimeo_septuplet/sequences_with_noise --ex_dataDir ./tiny/vimeo_septuplet/sequences_with_noise --pathlist ./tiny/vimeo_septuplet/sep_testlist.txt --model ./toflow_models/denoise.pkl --gpuID 1
+python3 evaluate.py --task zoom --dataDir ./tiny/vimeo_septuplet/sequences_blur --ex_dataDir ./tiny/vimeo_septuplet/sequences_blur --pathlist ./tiny/vimeo_septuplet/sep_testlist.txt --model ./toflow_models/sr.pkl --gpuID 1
 ```
 ## Usage
 

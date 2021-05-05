@@ -21,7 +21,7 @@ class MemoryFriendlyLoader(torch.utils.data.Dataset):
     def __getitem__(self, index):
         frames = []
         path_code = self.pathlist[index]
-        if self.task == 'interp':
+        if self.task == 'slow':
             N = 2   # 这里的N仅仅是为了下面取framex方便, 并非是论文里的N
             for i in [1, 3]:
                 frames.append(plt.imread(os.path.join(self.origin_img_dir, path_code, 'im%d.png' % i)))                  # load the first and third images

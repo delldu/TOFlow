@@ -14,7 +14,7 @@ import getopt
 # I don't know whether you have a GPU.
 # torch.cuda.set_device(0)
 # Static
-model_name = 'interp'                                                       # select model
+model_name = 'slow'                                                       # select model
 workplace = '.'
 
 frameFirstName = None
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     intPreprocessedHeight = int(math.floor(math.ceil(height / 32.0) * 32.0))  # 长度弄成32的倍数，便于上下采样
 
     print('Loading TOFlow Net... ', end='')
-    net = TOFlow(intPreprocessedHeight, intPreprocessedWidth, task='interp', cuda_flag=CUDA)
+    net = TOFlow(intPreprocessedHeight, intPreprocessedWidth, task='slow', cuda_flag=CUDA)
     net.load_state_dict(torch.load(os.path.join(workplace, 'toflow_models', model_name + '.pkl')))
     if CUDA:
         net.eval().cuda()

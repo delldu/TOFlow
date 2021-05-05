@@ -25,8 +25,8 @@ if sys.argv[1] in ['-h', '--help']:
     print("""pytoflow version 1.0
 usage: python3 train.py [[option] [value]]...
 options:
---task         training task, like interp, denoising, super-resolution
-               valid values:[interp, denoise, denoising, sr, super-resolution]
+--task         training task, like slow, clean, zoom
+               valid values:[slow, denoise, clean, sr, zoom]
 --dataDir      the directory of the input image dataset(Vimeo-90K, Vimeo-90K with noise, blurred Vimeo-90K)
 --pathlist     the text file records which are the images for train.
 --model        the path of the model used.
@@ -48,8 +48,8 @@ for strOption, strArgument in getopt.getopt(sys.argv[1:], '', [strParameter[2:] 
 
 if task == '':
     raise ValueError('Missing [--task].\nPlease enter the training task.')
-elif task not in ['interp', 'denoise', 'denoising', 'sr', 'super-resolution']:
-    raise ValueError('Invalid [--task].\nOnly support: [interp, denoise/denoising, sr/super-resolution]')
+elif task not in ['slow', 'denoise', 'clean', 'sr', 'zoom']:
+    raise ValueError('Invalid [--task].\nOnly support: [slow, denoise/clean, sr/zoom]')
 
 if dataset_dir == '':
     raise ValueError('Missing [--dataDir].\nPlease provide the directory of the dataset. (Vimeo-90K)')
@@ -74,7 +74,7 @@ def mkdir_if_not_exist(path):
 def vimeo_evaluate(input_dir, out_img_dir, test_codelistfile, task='', cuda_flag=True):
     mkdir_if_not_exist(out_img_dir)
 
-    net = TOFlow(256, 448, cuda_flag=cuda_flag, task=task)
+    net = TOFlow(task=task)
     net.load_state_dict(torch.load(model_path, map_location='cpu'))
     # pdb.set_trace()
     # model_path -- 'toflow_models/sr.pkl'
@@ -88,14 +88,14 @@ def vimeo_evaluate(input_dir, out_img_dir, test_codelistfile, task='', cuda_flag
     test_img_list = fp.read().splitlines()
     fp.close()
 
-    if task == 'interp':
+    if task == 'slow':
         process_index = [1, 3]
         str_format = 'im%d.png'
-    elif task in ['interp', 'denoise', 'denoising', 'sr', 'super-resolution']:
+    elif task in ['slow', 'clean', 'zoom']:
         process_index = [1, 2, 3, 4, 5, 6, 7]
         str_format = 'im%04d.png'
     else:
-        raise ValueError('Invalid [--task].\nOnly support: [interp, denoise/denoising, sr/super-resolution]')
+        raise ValueError('Invalid [--task].\nOnly support: [slow, denoise/clean, sr/zoom]')
     total_count = len(test_img_list)
     count = 0
     # pdb.set_trace()

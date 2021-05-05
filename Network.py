@@ -1,192 +1,116 @@
 import math
 import torch
-# import torch.utils.serialization   # it was removed in torch v1.0.0 or higher version.
+import torch.nn as nn
+import torch.nn.functional as F
+
 
 arguments_strModel = 'sintel-final'
 SpyNet_model_dir = './models'  # The directory of SpyNet's weights
 import pdb
 
-def normalize(tensorInput):
-    tensorRed = (tensorInput[:, 0:1, :, :] - 0.485) / 0.229
-    tensorGreen = (tensorInput[:, 1:2, :, :] - 0.456) / 0.224
-    tensorBlue = (tensorInput[:, 2:3, :, :] - 0.406) / 0.225
-    return torch.cat([tensorRed, tensorGreen, tensorBlue], 1)
+def normalize(input):
+    R = (input[:, 0:1, :, :] - 0.485) / 0.229
+    G = (input[:, 1:2, :, :] - 0.456) / 0.224
+    B = (input[:, 2:3, :, :] - 0.406) / 0.225
+    return torch.cat([R, G, B], 1)
 
 
-def denormalize(tensorInput):
-    tensorRed = (tensorInput[:, 0:1, :, :] * 0.229) + 0.485
-    tensorGreen = (tensorInput[:, 1:2, :, :] * 0.224) + 0.456
-    tensorBlue = (tensorInput[:, 2:3, :, :] * 0.225) + 0.406
-    return torch.cat([tensorRed, tensorGreen, tensorBlue], 1)
+def denormalize(input):
+    R = (input[:, 0:1, :, :] * 0.229) + 0.485
+    G = (input[:, 1:2, :, :] * 0.224) + 0.456
+    B = (input[:, 2:3, :, :] * 0.225) + 0.406
+    return torch.cat([R, G, B], 1)
 
 
-Backward_tensorGrid = {}
+@torch.jit.script
+def warp(image, flow):
+    B = image.shape[0]
+    H = image.shape[2]
+    W = image.shape[3]
 
-def Backward(tensorInput, tensorFlow, cuda_flag):
-    if str(tensorFlow.size()) not in Backward_tensorGrid:
-        tensorHorizontal = torch.linspace(-1.0, 1.0, tensorFlow.size(3)).view(1, 1, 1, tensorFlow.size(3)).expand(tensorFlow.size(0), -1, tensorFlow.size(2), -1)
-        tensorVertical = torch.linspace(-1.0, 1.0, tensorFlow.size(2)).view(1, 1, tensorFlow.size(2), 1).expand(tensorFlow.size(0), -1, -1, tensorFlow.size(3))
-        if cuda_flag:
-            Backward_tensorGrid[str(tensorFlow.size())] = torch.cat([ tensorHorizontal, tensorVertical ], 1).cuda()
-        else:
-            Backward_tensorGrid[str(tensorFlow.size())] = torch.cat([tensorHorizontal, tensorVertical], 1)
-    # end
+    grid_h = torch.arange(-1.0, 1.0, 2.0/W, device=flow.device).view(1, 1, 1, W).expand(B, -1, H, -1)
+    grid_v = torch.arange(-1.0, 1.0, 2.0/H, device=flow.device).view(1, 1, H, 1).expand(B, -1, -1, W)
+    warp_grid = torch.cat([grid_h, grid_v], 1)
 
-    tensorFlow = torch.cat([ tensorFlow[:, 0:1, :, :] / ((tensorInput.size(3) - 1.0) / 2.0), tensorFlow[:, 1:2, :, :] / ((tensorInput.size(2) - 1.0) / 2.0) ], 1)
+    flow = torch.cat([flow[:, 0:1, :, :] / ((W - 1.0) / 2.0), flow[:, 1:2, :, :] / ((H - 1.0) / 2.0)], 1)
 
-    return torch.nn.functional.grid_sample(input=tensorInput, grid=(Backward_tensorGrid[str(tensorFlow.size())] + tensorFlow).permute(0, 2, 3, 1), mode='bilinear', padding_mode='border')
-# end
+    g = (warp_grid + flow).permute(0, 2, 3, 1)
+    return F.grid_sample(input=image, grid=g, mode='bilinear', padding_mode='zeros', align_corners=True)
 
 # Optical Flow Estimation Using a Spatial Pyramid Network
-class SpyNet(torch.nn.Module):
-    def __init__(self, cuda_flag):
+class SpyNet(nn.Module):
+    def __init__(self):
         super(SpyNet, self).__init__()
-        self.cuda_flag = cuda_flag
 
-        class Basic(torch.nn.Module):
-            def __init__(self, intLevel):
+        class Basic(nn.Module):
+            def __init__(self, i):
                 super(Basic, self).__init__()
-
-                self.moduleBasic = torch.nn.Sequential(
-                    torch.nn.Conv2d(in_channels=8, out_channels=32, kernel_size=7, stride=1, padding=3),
-                    torch.nn.ReLU(inplace=False),
-                    torch.nn.Conv2d(in_channels=32, out_channels=64, kernel_size=7, stride=1, padding=3),
-                    torch.nn.ReLU(inplace=False),
-                    torch.nn.Conv2d(in_channels=64, out_channels=32, kernel_size=7, stride=1, padding=3),
-                    torch.nn.ReLU(inplace=False),
-                    torch.nn.Conv2d(in_channels=32, out_channels=16, kernel_size=7, stride=1, padding=3),
-                    torch.nn.ReLU(inplace=False),
-                    torch.nn.Conv2d(in_channels=16, out_channels=2, kernel_size=7, stride=1, padding=3)
+                self.moduleBasic = nn.Sequential(
+                    nn.Conv2d(in_channels=8, out_channels=32, kernel_size=7, stride=1, padding=3),
+                    nn.ReLU(inplace=False),
+                    nn.Conv2d(in_channels=32, out_channels=64, kernel_size=7, stride=1, padding=3),
+                    nn.ReLU(inplace=False),
+                    nn.Conv2d(in_channels=64, out_channels=32, kernel_size=7, stride=1, padding=3),
+                    nn.ReLU(inplace=False),
+                    nn.Conv2d(in_channels=32, out_channels=16, kernel_size=7, stride=1, padding=3),
+                    nn.ReLU(inplace=False),
+                    nn.Conv2d(in_channels=16, out_channels=2, kernel_size=7, stride=1, padding=3)
                 )
 
-            # end
+            def forward(self, input):
+                # pdb.set_trace()
+                return self.moduleBasic(input)
 
-            def forward(self, tensorInput):
-                return self.moduleBasic(tensorInput)
-
-        self.moduleBasic = torch.nn.ModuleList([Basic(intLevel) for intLevel in range(4)])
+        self.moduleBasic = nn.ModuleList([Basic(i) for i in range(4)])
 
         self.load_state_dict(torch.load(SpyNet_model_dir + '/network-' + arguments_strModel + '.pytorch'), strict=False)
         # pdb.set_trace()
         # './models/network-sintel-final.pytorch'
 
-    def forward(self, tensorFirst, tensorSecond):
+    def forward(self, first, second):
         # pdb.set_trace()
-        # (Pdb) tensorFirst.size()
+        # (Pdb) first.size()
         # torch.Size([1, 3, 256, 448])
-        # (Pdb) tensorSecond.size()
+        # (Pdb) second.size()
         # torch.Size([1, 3, 256, 448])
 
-        tensorFirst = [tensorFirst]
-        tensorSecond = [tensorSecond]
+        first = [first]
+        second = [second]
 
-        for intLevel in range(3):
-            if tensorFirst[0].size(2) > 32 or tensorFirst[0].size(3) > 32:
-                tensorFirst.insert(0, torch.nn.functional.avg_pool2d(input=tensorFirst[0], kernel_size=2, stride=2))
-                tensorSecond.insert(0, torch.nn.functional.avg_pool2d(input=tensorSecond[0], kernel_size=2, stride=2))
+        for i in range(3):
+            if first[0].size(2) > 32 or first[0].size(3) > 32:
+                first.insert(0, F.avg_pool2d(input=first[0], kernel_size=2, stride=2))
+                second.insert(0, F.avg_pool2d(input=second[0], kernel_size=2, stride=2))
+        # pdb.set_trace()
+        # for i in range(len(first)):
+        #     print("SpyNet --- first[0].size({}) --".format(i), first[i].size())
+        # SpyNet --- first[0].size(0) -- torch.Size([1, 3, 32, 56])
+        # SpyNet --- first[0].size(1) -- torch.Size([1, 3, 64, 112])
+        # SpyNet --- first[0].size(2) -- torch.Size([1, 3, 128, 224])
+        # SpyNet --- first[0].size(3) -- torch.Size([1, 3, 256, 448])
 
-        tensorFlow = tensorFirst[0].new_zeros(tensorFirst[0].size(0), 2,
-                                              int(math.floor(tensorFirst[0].size(2) / 2.0)),
-                                              int(math.floor(tensorFirst[0].size(3) / 2.0)))
+        B = first[0].size(0)
+        H = first[0].size(2)
+        W = first[0].size(3)
+        flow = torch.zeros(B, 2, H//2, W//2, device=first[0].device)
 
-        for intLevel in range(len(tensorFirst)):
-            tensorUpsampled = torch.nn.functional.interpolate(input=tensorFlow, scale_factor=2, mode='bilinear', align_corners=True) * 2.0
+        for i in range(len(first)):
+            upflow = F.interpolate(input=flow, scale_factor=2, mode='bilinear', align_corners=True) * 2.0
 
             # if the sizes of upsampling and downsampling are not the same, apply zero-padding.
-            if tensorUpsampled.size(2) != tensorFirst[intLevel].size(2):
-                tensorUpsampled = torch.nn.functional.pad(input=tensorUpsampled, pad=[0, 0, 0, 1], mode='replicate')
-            if tensorUpsampled.size(3) != tensorFirst[intLevel].size(3):
-                tensorUpsampled = torch.nn.functional.pad(input=tensorUpsampled, pad=[0, 1, 0, 0], mode='replicate')
+            if upflow.size(2) != first[i].size(2):
+                upflow = F.pad(input=upflow, pad=[0, 0, 0, 1], mode='replicate')
+            if upflow.size(3) != first[i].size(3):
+                upflow = F.pad(input=upflow, pad=[0, 1, 0, 0], mode='replicate')
 
-            # input ：[first picture of corresponding level,
-            # 		   the output of w with input second picture of corresponding level and upsampling flow,
-            # 		   upsampling flow]
-            # then we obtain the final flow. 最终再加起来得到intLevel的flow
-            tensorFlow = self.moduleBasic[intLevel](torch.cat([tensorFirst[intLevel],
-                                                               Backward(tensorInput=tensorSecond[intLevel],
-                                                                        tensorFlow=tensorUpsampled,
-                                                                        cuda_flag=self.cuda_flag),
-                                                               tensorUpsampled], 1)) + tensorUpsampled
+            basic = torch.cat([first[i], warp(second[i], upflow), upflow], 1)
+            flow = self.moduleBasic[i](basic) + upflow
 
         # pdb.set_trace()
-        # tensorFlow.size() -- torch.Size([1, 2, 256, 448])
-        return tensorFlow
+        # flow.size() -- torch.Size([1, 2, 256, 448])
+        return flow
 
-
-class warp(torch.nn.Module):
-    def __init__(self, h, w, cuda_flag):
-        super(warp, self).__init__()
-        self.height = h
-        self.width = w
-        if cuda_flag:
-            self.addterm = self.init_addterm().cuda()
-        else:
-            self.addterm = self.init_addterm()
-
-    def init_addterm(self):
-        n = torch.FloatTensor(list(range(self.width)))
-        horizontal_term = n.expand((1, 1, self.height, self.width))  # 第一个1是batch size
-        n = torch.FloatTensor(list(range(self.height)))
-        vertical_term = n.expand((1, 1, self.width, self.height)).permute(0, 1, 3, 2)
-        addterm = torch.cat((horizontal_term, vertical_term), dim=1)
-        # pdb.set_trace()
-        # addterm -- torch.Size([1, 2, 256, 448])
-        # horizontal_term -- torch.Size([1, 1, 256, 448])
-        # tensor([[[[  0.,   1.,   2.,  ..., 445., 446., 447.],
-        #           [  0.,   1.,   2.,  ..., 445., 446., 447.],
-        #           [  0.,   1.,   2.,  ..., 445., 446., 447.],
-        #           ...,
-        #           [  0.,   1.,   2.,  ..., 445., 446., 447.],
-        #           [  0.,   1.,   2.,  ..., 445., 446., 447.],
-        #           [  0.,   1.,   2.,  ..., 445., 446., 447.]]]])
-
-        # vertical_term.size() -- torch.Size([1, 1, 256, 448])
-        # (Pdb) vertical_term
-        # tensor([[[[  0.,   0.,   0.,  ...,   0.,   0.,   0.],
-        #           [  1.,   1.,   1.,  ...,   1.,   1.,   1.],
-        #           [  2.,   2.,   2.,  ...,   2.,   2.,   2.],
-        #           ...,
-        #           [253., 253., 253.,  ..., 253., 253., 253.],
-        #           [254., 254., 254.,  ..., 254., 254., 254.],
-        #           [255., 255., 255.,  ..., 255., 255., 255.]]]])
-
-        return addterm
-
-    def forward(self, frame, flow):
-        """
-        :param frame: frame.shape (batch_size=1, n_channels=3, width=256, height=448)
-        :param flow: flow.shape (batch_size=1, n_channels=2, width=256, height=448)
-        :return: reference_frame: warped frame
-        """
-        # frame-- torch.Size([1, 3, 256, 448])
-        # (Pdb) frame.min(), frame.max(), frame.mean()
-        # (tensor(-2.1179, device='cuda:0'), tensor(2.6400, device='cuda:0'), tensor(1.4066, device='cuda:0'))
-        # What's up?
-
-        if True:
-            flow = flow + self.addterm
-        else:
-            self.addterm = self.init_addterm()
-            flow = flow + self.addterm
-
-        horizontal_flow = flow[0, 0, :, :].expand(1, 1, self.height, self.width)  # 第一个0是batch size
-        vertical_flow = flow[0, 1, :, :].expand(1, 1, self.height, self.width)
-
-        horizontal_flow = horizontal_flow * 2 / (self.width - 1) - 1
-        # ==> [-1.0, 1.0]
-        vertical_flow = vertical_flow * 2 / (self.height - 1) - 1
-        # ==> [-1.0, 1.0]
-        flow = torch.cat((horizontal_flow, vertical_flow), dim=1)
-        flow = flow.permute(0, 2, 3, 1)
-        # flow--torch.Size([1, 256, 448, 2])
-
-        reference_frame = torch.nn.functional.grid_sample(frame, flow)
-        # reference_frame -- torch.Size([1, 3, 256, 448])
-
-        return reference_frame
-
-
-class ResNet(torch.nn.Module):
+class ResNet(nn.Module):
     """
     Three-layers ResNet/ResBlock
     reference: https://blog.csdn.net/chenyuping333/article/details/82344334
@@ -194,25 +118,25 @@ class ResNet(torch.nn.Module):
     def __init__(self, task):
         super(ResNet, self).__init__()
         self.task = task
-        self.conv_3x2_64_9x9 = torch.nn.Conv2d(in_channels=3 * 2, out_channels=64, kernel_size=9, padding=8 // 2)
-        self.conv_3x7_64_9x9 = torch.nn.Conv2d(in_channels=3 * 7, out_channels=64, kernel_size=9, padding=8 // 2)
-        self.conv_64_64_9x9 = torch.nn.Conv2d(in_channels=64, out_channels=64, kernel_size=9, padding=8 // 2)
-        self.conv_64_64_1x1 = torch.nn.Conv2d(in_channels=64, out_channels=64, kernel_size=1)
-        self.conv_64_3_1x1 = torch.nn.Conv2d(in_channels=64, out_channels=3, kernel_size=1)
+        self.conv_3x2_64_9x9 = nn.Conv2d(in_channels=3 * 2, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_3x7_64_9x9 = nn.Conv2d(in_channels=3 * 7, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_64_64_9x9 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_64_64_1x1 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=1)
+        self.conv_64_3_1x1 = nn.Conv2d(in_channels=64, out_channels=3, kernel_size=1)
 
     def ResBlock(self, x, aver):
-        if self.task == 'interp':
-            x = torch.nn.functional.relu(self.conv_3x2_64_9x9(x))
-            x = torch.nn.functional.relu(self.conv_64_64_1x1(x))
-        elif self.task in ['denoise', 'denoising']:
-            x = torch.nn.functional.relu(self.conv_3x7_64_9x9(x))
-            x = torch.nn.functional.relu(self.conv_64_64_1x1(x))
-        elif self.task in ['sr', 'super-resolution']:
-            x = torch.nn.functional.relu(self.conv_3x7_64_9x9(x))
-            x = torch.nn.functional.relu(self.conv_64_64_9x9(x))
-            x = torch.nn.functional.relu(self.conv_64_64_1x1(x))
+        if self.task == 'slow':
+            x = F.relu(self.conv_3x2_64_9x9(x))
+            x = F.relu(self.conv_64_64_1x1(x))
+        elif self.task in ['clean']:
+            x = F.relu(self.conv_3x7_64_9x9(x))
+            x = F.relu(self.conv_64_64_1x1(x))
+        elif self.task in ['zoom']:
+            x = F.relu(self.conv_3x7_64_9x9(x))
+            x = F.relu(self.conv_64_64_9x9(x))
+            x = F.relu(self.conv_64_64_1x1(x))
         else:
-            raise NameError('Only support: [interp, denoise/denoising, sr/super-resolution]')
+            raise NameError('Only support: [slow, clean, zoom]')
         x = self.conv_64_3_1x1(x) + aver
         return x
 
@@ -220,11 +144,11 @@ class ResNet(torch.nn.Module):
         # frames.size() -- torch.Size([1, 7, 3, 256, 448])
 
         aver = frames.mean(dim=1)
-        x = frames[:, 0, :, :, :]
-        # pdb.set_trace()
+        # x = frames[:, 0, :, :, :]
+        # for i in range(1, frames.size(1)):
+        #     x = torch.cat((x, frames[:, i, :, :, :]), dim=1)
 
-        for i in range(1, frames.size(1)):
-            x = torch.cat((x, frames[:, i, :, :, :]), dim=1)
+        x =frames.view(frames.size(0), frames.size(1) * frames.size(2), frames.size(3), frames.size(4))
 
         # x.size() -- torch.Size([1, 21, 256, 448])
         result = self.ResBlock(x, aver)
@@ -233,21 +157,12 @@ class ResNet(torch.nn.Module):
         return result
 
 
-class TOFlow(torch.nn.Module):
-    def __init__(self, h, w, task, cuda_flag):
+class TOFlow(nn.Module):
+    def __init__(self, task):
         super(TOFlow, self).__init__()
-        self.height = h
-        self.width = w
         self.task = task
-        self.cuda_flag = cuda_flag
-
-        self.SpyNet = SpyNet(cuda_flag=self.cuda_flag)  # SpyNet层
-        # for param in self.SpyNet.parameters():  # fix
-        #     param.requires_grad = False
-
-        self.warp = warp(self.height, self.width, cuda_flag=self.cuda_flag)
-
-        self.ResNet = ResNet(task=self.task)
+        self.spynet = SpyNet()
+        self.resnet = ResNet(task=self.task)
 
     # frames should be TensorFloat
     def forward(self, frames):
@@ -255,45 +170,34 @@ class TOFlow(torch.nn.Module):
         :param frames: [batch_size=1, img_num, n_channels=3, h, w]
         :return:
         """
-        # pdb.set_trace()
         # frames.size()
         # torch.Size([1, 7, 3, 256, 448])
 
         for i in range(frames.size(1)):
             frames[:, i, :, :, :] = normalize(frames[:, i, :, :, :])
 
-        if self.cuda_flag:
-            opticalflows = torch.zeros(frames.size(0), frames.size(1), 2, frames.size(3), frames.size(4)).cuda()
-            warpframes = torch.empty(frames.size(0), frames.size(1), 3, frames.size(3), frames.size(4)).cuda()
-        else:
-            opticalflows = torch.zeros(frames.size(0), frames.size(1), 2, frames.size(3), frames.size(4))
-            warpframes = torch.empty(frames.size(0), frames.size(1), 3, frames.size(3), frames.size(4))
+        flows = torch.zeros(frames.size(0), frames.size(1), 2, frames.size(3), frames.size(4), device=frames.device)
+        warpframes = torch.zeros(frames.size(0), frames.size(1), 3, frames.size(3), frames.size(4), device=frames.device)
 
-        if self.task == 'interp':
+        if self.task == 'slow':
             process_index = [0, 1]
-            opticalflows[:, 1, :, :, :] = self.SpyNet(frames[:, 0, :, :, :], frames[:, 1, :, :, :]) / 2
-            opticalflows[:, 0, :, :, :] = self.SpyNet(frames[:, 1, :, :, :], frames[:, 0, :, :, :]) / 2
-        elif self.task in ['denoise', 'denoising', 'sr', 'super-resolution']:
+            flows[:, 1, :, :, :] = self.spynet(frames[:, 0, :, :, :], frames[:, 1, :, :, :]) / 2
+            flows[:, 0, :, :, :] = self.spynet(frames[:, 1, :, :, :], frames[:, 0, :, :, :]) / 2
+        elif self.task in ['clean', 'zoom']:
             process_index = [0, 1, 2, 4, 5, 6]
             for i in process_index:
-                opticalflows[:, i, :, :, :] = self.SpyNet(frames[:, 3, :, :, :], frames[:, i, :, :, :])
+                flows[:, i, :, :, :] = self.spynet(frames[:, 3, :, :, :], frames[:, i, :, :, :])
             warpframes[:, 3, :, :, :] = frames[:, 3, :, :, :]
-
         else:
-            raise NameError('Only support: [interp, denoise/denoising, sr/super-resolution]')
+            raise NameError('Only support: [slow, clean, zoom]')
 
         for i in process_index:
-            warpframes[:, i, :, :, :] = self.warp(frames[:, i, :, :, :], opticalflows[:, i, :, :, :])
+            warpframes[:, i, :, :, :] = warp(frames[:, i, :, :, :], flows[:, i, :, :, :])
         # warpframes: [batch_size=1, img_num=7, n_channels=3, height=256, width=448]
-
         # (Pdb) warpframes.size() -- torch.Size([1, 7, 3, 256, 448])
 
-        Img = self.ResNet(warpframes)
-        # Img: [batch_size=1, n_channels=3, h, w]
+        image = self.resnet(warpframes)
+        image = denormalize(image)
+        # image -- torch.Size([1, 3, 256, 448])
 
-        Img = denormalize(Img)
-
-        # pdb.set_trace()
-        # Img -- torch.Size([1, 3, 256, 448])
-
-        return Img.clamp(0.0, 1.0)
+        return image.clamp(0.0, 1.0)

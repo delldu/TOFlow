@@ -25,8 +25,8 @@ if sys.argv[1] in ['-h', '--help']:
     print("""pytoflow version 1.0
 usage: python3 train.py [[option] [value]]...
 options:
---task         training task, like interp, denoising, super-resolution
-               valid values:[interp, denoise, denoising, sr, super-resolution]
+--task         training task, like slow, clean, zoom
+               valid values:[slow, denoise, clean, sr, zoom]
 --dataDir      the directory of the image dataset(Vimeo-90K)
 --ex_dataDir   the directory of the preprocessed image dataset, for example, the Vimeo-90K mixed by Gaussian noise.
 --pathlist     the text file records which are the images for train.
@@ -49,15 +49,15 @@ for strOption, strArgument in getopt.getopt(sys.argv[1:], '', [strParameter[2:] 
 
 if task == '':
     raise ValueError('Missing [--task].\nPlease enter the training task.')
-elif task not in ['interp', 'denoise', 'denoising', 'sr', 'super-resolution']:
-    raise ValueError('Invalid [--task].\nOnly support: [interp, denoise/denoising, sr/super-resolution]')
+elif task not in ['slow', 'denoise', 'clean', 'sr', 'zoom']:
+    raise ValueError('Invalid [--task].\nOnly support: [slow, denoise/clean, sr/zoom]')
 
 if dataset_dir == '':
     raise ValueError('Missing [--dataDir].\nPlease provide the directory of the dataset. (Vimeo-90K)')
-if task in ['denoise', 'denoising', 'sr', 'super-resolution'] and edited_img_dir == '':
+if task in ['denoise', 'clean', 'sr', 'zoom'] and edited_img_dir == '':
     raise ValueError('Missing [--ex_dataDir]. \
                     \nPlease provide the directory of the edited image dataset \
-                    \nif you train on denoising or super resolution task. (Vimeo-90K)')
+                    \nif you train on clean or super resolution task. (Vimeo-90K)')
 
 if pathlistfile == '':
     raise ValueError('Missing [--pathlist].\nPlease provide the pathlist index file.')
@@ -69,9 +69,9 @@ else:
     torch.cuda.set_device(gpuID)
 # --------------------------------------------------------------
 # Hyper Parameters
-if task == 'interp':
+if task == 'slow':
     LR = 3 * 1e-5
-elif task in ['denoise', 'denoising', 'sr', 'super-resolution']:
+elif task in ['denoise', 'clean', 'sr', 'zoom']:
     LR = 1 * 1e-4
 EPOCH = 5
 WEIGHT_DECAY = 1e-4
