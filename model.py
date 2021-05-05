@@ -21,8 +21,8 @@ def model_load(model, path):
     target_state_dict = model.state_dict()
 
     for n, p in state_dict.items():
-        n = n.replace("SpyNet.", "spynet.")
-        n = n.replace("ResNet.", "resnet.")
+        # n = n.replace("SpyNet.", "spynet.")
+        # n = n.replace("ResNet.", "resnet.")
         if n in target_state_dict.keys():
             target_state_dict[n].copy_(p)
         else:

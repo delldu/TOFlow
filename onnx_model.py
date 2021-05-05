@@ -103,8 +103,9 @@ if __name__ == '__main__':
                           opset_version=11,
                           keep_initializers_as_inputs=False,
                           dynamic_axes=dynamic_axes,
-                          export_params=True)
-
+                          export_params=True,
+                          example_outputs=torch.randn(1, 3, 256, 448))
+        
         # 3. Optimize model
         # print('Checking model ...')
         # onnx_model = onnx.load(onnx_file_name)
@@ -139,7 +140,8 @@ if __name__ == '__main__':
                           opset_version=11,
                           keep_initializers_as_inputs=False,
                           dynamic_axes=dynamic_axes,
-                          export_params=True)
+                          export_params=True,
+                          example_outputs=torch.randn(1, 3, 256, 448))
 
         # 3. Optimize model
         # print('Checking model ...')
@@ -175,7 +177,8 @@ if __name__ == '__main__':
                           opset_version=11,
                           keep_initializers_as_inputs=False,
                           dynamic_axes=dynamic_axes,
-                          export_params=True)
+                          export_params=True,
+                          example_outputs=torch.randn(1, 3, 256, 448))
 
         # 3. Optimize model
         # print('Checking model ...')
@@ -214,8 +217,8 @@ if __name__ == '__main__':
 
     if args.export:
         export_clean_onnx()
-        export_slow_onnx()
-        export_zoom_onnx()
+        # export_slow_onnx()
+        # export_zoom_onnx()
 
     if args.verify:
         verify_onnx()
