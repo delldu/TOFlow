@@ -142,7 +142,7 @@ if __name__ == '__main__':
     def export_clean_onnx():
         """Export onnx model."""
 
-        dummy_input = torch.randn(1, 7, 3, 256, 448)
+        dummy_input = torch.randn(7, 3, 256, 448)
         onnx_file_name = "{}/toflow_clean.onnx".format(args.output)
 
         # 1. Create and load model.
@@ -154,8 +154,8 @@ if __name__ == '__main__':
 
         input_names = ["input"]
         output_names = ["output"]
-        dynamic_axes = {'input': {3: "height", 4: "width"},
-                        'output': {4: "height", 4: "width"}}
+        dynamic_axes = {'input': {2: "height", 3: "width"},
+                        'output': {2: "height", 3: "width"}}
 
         torch.onnx.export(torch_model, dummy_input, onnx_file_name,
                           input_names=input_names,
@@ -179,7 +179,7 @@ if __name__ == '__main__':
     def export_slow_onnx():
         """Export onnx model."""
 
-        dummy_input = torch.randn(1, 2, 3, 256, 448)
+        dummy_input = torch.randn(2, 3, 256, 448)
         onnx_file_name = "{}/toflow_slow.onnx".format(args.output)
 
         # 1. Create and load model.
@@ -191,8 +191,8 @@ if __name__ == '__main__':
 
         input_names = ["input"]
         output_names = ["output"]
-        dynamic_axes = {'input': {3: "height", 4: "width"},
-                        'output': {4: "height", 4: "width"}}
+        dynamic_axes = {'input': {2: "height", 3: "width"},
+                        'output': {2: "height", 3: "width"}}
 
         torch.onnx.export(torch_model, dummy_input, onnx_file_name,
                           input_names=input_names,
@@ -216,7 +216,7 @@ if __name__ == '__main__':
     def export_zoom_onnx():
         """Export onnx model."""
 
-        dummy_input = torch.randn(1, 7, 3, 256, 448)
+        dummy_input = torch.randn(7, 3, 256, 448)
         onnx_file_name = "{}/toflow_zoom.onnx".format(args.output)
 
         # 1. Create and load model.
@@ -228,8 +228,8 @@ if __name__ == '__main__':
 
         input_names = ["input"]
         output_names = ["output"]
-        dynamic_axes = {'input': {3: "height", 4: "width"},
-                        'output': {4: "height", 4: "width"}}
+        dynamic_axes = {'input': {2: "height", 3: "width"},
+                        'output': {2: "height", 3: "width"}}
 
         torch.onnx.export(torch_model, dummy_input, onnx_file_name,
                           input_names=input_names,

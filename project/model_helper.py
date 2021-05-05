@@ -125,27 +125,6 @@ class ResNet(nn.Module):
         self.conv_64_64_1x1 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=1)
         self.conv_64_3_1x1 = nn.Conv2d(in_channels=64, out_channels=3, kernel_size=1)
 
-        # self.ResBlock = nn.ModuleList()
-        # if self.task == 'slow':
-        #     self.ResBlock.append(self.conv_3x2_64_9x9)
-        #     self.ResBlock.append(nn.ReLU())
-        #     self.ResBlock.append(self.conv_64_64_1x1)
-        #     self.ResBlock.append(nn.ReLU())
-        # elif self.task in ['clean']:
-        #     self.ResBlock.append(self.conv_3x7_64_9x9)
-        #     self.ResBlock.append(nn.ReLU())
-        #     self.ResBlock.append(self.conv_64_64_1x1)
-        #     self.ResBlock.append(nn.ReLU())
-        # elif self.task in ['zoom']:
-        #     self.ResBlock.append(self.conv_3x7_64_9x9)
-        #     self.ResBlock.append(nn.ReLU())
-        #     self.ResBlock.append(self.conv_64_64_9x9)
-        #     self.ResBlock.append(nn.ReLU())
-        #     self.ResBlock.append(self.conv_64_64_1x1)
-        #     self.ResBlock.append(nn.ReLU())
-
-        # self.ResBlock.append(self.conv_64_3_1x1)
-
     def ResBlock(self, x, aver):
         if self.task == 'slow':
             x = F.relu(self.conv_3x2_64_9x9(x))
@@ -192,7 +171,8 @@ class TOFlow(nn.Module):
         :return:
         """
         # frames.size()
-        # torch.Size([1, 7, 3, 256, 448])
+        # torch.Size([7, 3, 256, 448])
+        frames = frames.unsqueeze(0)
 
         for i in range(frames.size(1)):
             frames[:, i, :, :, :] = normalize(frames[:, i, :, :, :])
@@ -236,8 +216,10 @@ class CleanFlow(nn.Module):
         :return:
         """
         # frames.size()
-        # torch.Size([1, 7, 3, 256, 448])
+        # torch.Size([7, 3, 256, 448])
         # for i in range(frames.size(1)):
+        frames = frames.unsqueeze(0)
+
         for i in range(7):
             frames[:, i, :, :, :] = normalize(frames[:, i, :, :, :])
 
@@ -272,8 +254,10 @@ class SlowFlow(nn.Module):
         :return:
         """
         # frames.size()
-        # torch.Size([1, 2, 3, 256, 448])
+        # torch.Size([2, 3, 256, 448])
         # for i in range(frames.size(1)):
+        frames = frames.unsqueeze(0)
+
         for i in range(2):
             frames[:, i, :, :, :] = normalize(frames[:, i, :, :, :])
 
@@ -308,8 +292,10 @@ class ZoomFlow(nn.Module):
         :return:
         """
         # frames.size()
-        # torch.Size([1, 7, 3, 256, 448])
+        # torch.Size([7, 3, 256, 448])
         # for i in range(frames.size(1)):
+        frames = frames.unsqueeze(0)
+
         for i in range(7):
             frames[:, i, :, :, :] = normalize(frames[:, i, :, :, :])
 
