@@ -76,7 +76,68 @@ if __name__ == '__main__':
     # ************************************************************************************/
     #
 
-    checkpoint = "models/VideoRIFE.pth"
+    def export_spynet_onnx():
+        """Export onnx model."""
+
+        from Network import SpyNet
+
+        dummy_input1 = torch.randn(1, 3, 256, 448)
+        dummy_input2 = torch.randn(1, 3, 256, 448)
+
+        onnx_file_name = "{}/toflow_spynet.onnx".format(args.output)
+
+        # 1. Create and load model.
+        torch_model = SpyNet()
+        torch_model.eval()
+
+        # 2. Model export
+        print("Exporting onnx model to {}...".format(onnx_file_name))
+
+        input_names = ["first", "second"]
+        output_names = ["output"]
+        dynamic_axes = {'first': {2: "height", 3: "width"},
+                        'second': {2: "height", 3: "width"},
+                        'output': {2: "height", 2: "width"}}
+
+        torch.onnx.export(torch_model, (dummy_input1, dummy_input2), onnx_file_name,
+                          input_names=input_names,
+                          output_names=output_names,
+                          verbose=True,
+                          opset_version=11,
+                          keep_initializers_as_inputs=False,
+                          dynamic_axes=dynamic_axes,
+                          export_params=True)
+        
+
+    def export_resnet_onnx():
+        """Export onnx model."""
+
+        from Network import ResNet
+
+        dummy_input = torch.randn(1, 7, 3, 256, 448)
+
+        onnx_file_name = "{}/toflow_resnet.onnx".format(args.output)
+
+        # 1. Create and load model.
+        torch_model = ResNet("zoom")
+        torch_model.eval()
+
+        # 2. Model export
+        print("Exporting onnx model to {}...".format(onnx_file_name))
+
+        input_names = ["input"]
+        output_names = ["output"]
+        dynamic_axes = {'input': {3: "height", 4: "width"},
+                        'output': {3: "height", 4: "width"}}
+
+        torch.onnx.export(torch_model, dummy_input, onnx_file_name,
+                          input_names=input_names,
+                          output_names=output_names,
+                          verbose=True,
+                          opset_version=11,
+                          keep_initializers_as_inputs=False,
+                          dynamic_axes=dynamic_axes,
+                          export_params=True)
 
     def export_clean_onnx():
         """Export onnx model."""
@@ -103,9 +164,9 @@ if __name__ == '__main__':
                           opset_version=11,
                           keep_initializers_as_inputs=False,
                           dynamic_axes=dynamic_axes,
-                          export_params=True,
-                          example_outputs=torch.randn(1, 3, 256, 448))
+                          export_params=True)
         
+        # example_outputs=torch.randn(1, 3, 256, 448)        
         # 3. Optimize model
         # print('Checking model ...')
         # onnx_model = onnx.load(onnx_file_name)
@@ -192,33 +253,14 @@ if __name__ == '__main__':
 
     def verify_onnx():
         """Verify onnx model."""
-
         sys.exit("Sorry, this function NOT work for grid_sampler, please use onnxservice to test.")
-        dummy_input = torch.randn(2, 3, 256, 256)
-        onnx_file_name = "{}/toflow_clean.onnx".format(args.output)
-
-        torch_model = get_model(checkpoint)
-        torch_model.eval()
-
-        onnxruntime_engine = onnx_load(onnx_file_name)
-
-        def to_numpy(tensor):
-            return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
-
-        with torch.no_grad():
-            torch_output = torch_model(dummy_input)
-
-        onnxruntime_inputs = {onnxruntime_engine.get_inputs()[0].name: to_numpy(dummy_input)}
-        onnxruntime_outputs = onnxruntime_engine.run(None, onnxruntime_inputs)
-
-        np.testing.assert_allclose(to_numpy(torch_output), onnxruntime_outputs[0], rtol=1e-03, atol=1e-03)
-        print("Onnx model {} has been tested with ONNXRuntime, result sounds good !".format(onnx_file_name))
-
 
     if args.export:
+        # export_spynet_onnx()
+        # export_resnet_onnx()
         export_clean_onnx()
-        # export_slow_onnx()
-        # export_zoom_onnx()
+        export_slow_onnx()
+        export_zoom_onnx()
 
     if args.verify:
         verify_onnx()

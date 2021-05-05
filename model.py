@@ -11,7 +11,7 @@
 
 import os
 import torch
-from Network import TOFlow
+from Network import CleanFlow, SlowFlow, ZoomFlow
 import pdb
 
 def model_load(model, path):
@@ -32,14 +32,16 @@ def get_model(task):
     """Create model."""
 
     model_setenv()
-    model = TOFlow(task)
 
     if task == "clean":
         checkpoint = "models/TOFlowClean.pth"
-    if task == "slow":
+        model = CleanFlow()
+    elif task == "slow":
         checkpoint = "models/TOFlowSlow.pth"
-    if task == "zoom":
+        model = SlowFlow()
+    elif task == "zoom":
         checkpoint = "models/TOFlowZoom.pth"
+        model = ZoomFlow()
 
     model_load(model, checkpoint)
 
