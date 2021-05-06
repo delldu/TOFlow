@@ -54,6 +54,13 @@ def warp(image, flow):
     g = (warp_grid + flow).permute(0, 2, 3, 1)
     return F.grid_sample(input=image, grid=g, mode='bilinear', padding_mode='zeros', align_corners=True)
 
+@script
+def half_flow(image):
+    B = image.size(0)
+    H = image.size(2)
+    W = image.size(3)
+    return torch.zeros(B, 2, int(H/2), int(W/2), device=image.device)
+
 # Optical Flow Estimation Using a Spatial Pyramid Network
 class SpyNet(nn.Module):
     def __init__(self):
@@ -98,10 +105,7 @@ class SpyNet(nn.Module):
             first.insert(0, F.avg_pool2d(first[0], kernel_size=2, stride=2))
             second.insert(0, F.avg_pool2d(second[0], kernel_size=2, stride=2))
 
-        B = first[0].size(0)
-        H = first[0].size(2)
-        W = first[0].size(3)
-        flow = torch.zeros(B, 2, H//2, W//2, device=first[0].device)
+        flow = half_flow(first[0])
         for i in range(4):
             upflow = F.interpolate(flow, scale_factor=2.0, mode='bilinear', align_corners=True) * 2.0
 
@@ -138,6 +142,110 @@ class ResNet(nn.Module):
             x = F.relu(self.conv_64_64_1x1(x))
         else:
             raise NameError('Only support: [slow, clean, zoom]')
+        x = self.conv_64_3_1x1(x) + aver
+        return x
+
+    def forward(self, frames):
+        # frames.size() -- torch.Size([1, 7, 3, 256, 448])
+
+        aver = frames.mean(dim=1)
+        # x = frames[:, 0, :, :, :]
+        # for i in range(1, frames.size(1)):
+        #     x = torch.cat((x, frames[:, i, :, :, :]), dim=1)
+
+        x =frames.view(frames.size(0), frames.size(1) * frames.size(2), frames.size(3), frames.size(4))
+
+        # x.size() -- torch.Size([1, 21, 256, 448])
+        result = self.ResBlock(x, aver)
+
+        # result.size() -- torch.Size([1, 3, 256, 448])
+        return result
+
+
+class CleanResNet(nn.Module):
+    """
+    Three-layers ResNet/ResBlock
+    reference: https://blog.csdn.net/chenyuping333/article/details/82344334
+    """
+    def __init__(self):
+        super(CleanResNet, self).__init__()
+        self.conv_3x2_64_9x9 = nn.Conv2d(in_channels=3 * 2, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_3x7_64_9x9 = nn.Conv2d(in_channels=3 * 7, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_64_64_9x9 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_64_64_1x1 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=1)
+        self.conv_64_3_1x1 = nn.Conv2d(in_channels=64, out_channels=3, kernel_size=1)
+
+    def ResBlock(self, x, aver):
+        x = F.relu(self.conv_3x7_64_9x9(x))
+        x = F.relu(self.conv_64_64_1x1(x))
+        x = self.conv_64_3_1x1(x) + aver
+        return x
+
+    def forward(self, frames):
+        # frames.size() -- torch.Size([1, 7, 3, 256, 448])
+
+        aver = frames.mean(dim=1)
+        # x = frames[:, 0, :, :, :]
+        # for i in range(1, frames.size(1)):
+        #     x = torch.cat((x, frames[:, i, :, :, :]), dim=1)
+
+        x =frames.view(frames.size(0), frames.size(1) * frames.size(2), frames.size(3), frames.size(4))
+
+        # x.size() -- torch.Size([1, 21, 256, 448])
+        result = self.ResBlock(x, aver)
+
+        # result.size() -- torch.Size([1, 3, 256, 448])
+        return result
+
+class SlowResNet(nn.Module):
+    """
+    Three-layers ResNet/ResBlock
+    reference: https://blog.csdn.net/chenyuping333/article/details/82344334
+    """
+    def __init__(self):
+        super(SlowResNet, self).__init__()
+        self.conv_3x2_64_9x9 = nn.Conv2d(in_channels=3 * 2, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_3x7_64_9x9 = nn.Conv2d(in_channels=3 * 7, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_64_64_9x9 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_64_64_1x1 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=1)
+        self.conv_64_3_1x1 = nn.Conv2d(in_channels=64, out_channels=3, kernel_size=1)
+
+    def ResBlock(self, x, aver):
+        x = F.relu(self.conv_3x2_64_9x9(x))
+        x = F.relu(self.conv_64_64_1x1(x))
+        x = self.conv_64_3_1x1(x) + aver
+        return x
+
+    def forward(self, frames):
+        # frames.size() -- torch.Size([1, 7, 3, 256, 448])
+
+        aver = frames.mean(dim=1)
+        # x = frames[:, 0, :, :, :]
+        # for i in range(1, frames.size(1)):
+        #     x = torch.cat((x, frames[:, i, :, :, :]), dim=1)
+
+        x =frames.view(frames.size(0), frames.size(1) * frames.size(2), frames.size(3), frames.size(4))
+
+        # x.size() -- torch.Size([1, 21, 256, 448])
+        result = self.ResBlock(x, aver)
+
+        # result.size() -- torch.Size([1, 3, 256, 448])
+        return result
+
+
+class ZoomResNet(nn.Module):
+    def __init__(self):
+        super(ZoomResNet, self).__init__()
+        self.conv_3x2_64_9x9 = nn.Conv2d(in_channels=3 * 2, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_3x7_64_9x9 = nn.Conv2d(in_channels=3 * 7, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_64_64_9x9 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=9, padding=8 // 2)
+        self.conv_64_64_1x1 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=1)
+        self.conv_64_3_1x1 = nn.Conv2d(in_channels=64, out_channels=3, kernel_size=1)
+
+    def ResBlock(self, x, aver):
+        x = F.relu(self.conv_3x7_64_9x9(x))
+        x = F.relu(self.conv_64_64_9x9(x))
+        x = F.relu(self.conv_64_64_1x1(x))
         x = self.conv_64_3_1x1(x) + aver
         return x
 
@@ -208,7 +316,7 @@ class CleanFlow(nn.Module):
     def __init__(self):
         super(CleanFlow, self).__init__()
         self.SpyNet = SpyNet()
-        self.ResNet = ResNet(task="clean")
+        self.ResNet = CleanResNet()
 
     def forward(self, frames):
         """
@@ -246,7 +354,7 @@ class SlowFlow(nn.Module):
     def __init__(self):
         super(SlowFlow, self).__init__()
         self.SpyNet = SpyNet()
-        self.ResNet = ResNet(task="slow")
+        self.ResNet = SlowResNet()
 
     def forward(self, frames):
         """
@@ -284,7 +392,7 @@ class ZoomFlow(nn.Module):
     def __init__(self):
         super(ZoomFlow, self).__init__()
         self.SpyNet = SpyNet()
-        self.ResNet = ResNet(task="zoom")
+        self.ResNet = ZoomResNet()
 
     def forward(self, frames):
         """
